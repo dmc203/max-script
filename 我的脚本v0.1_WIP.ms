@@ -6,6 +6,8 @@
 	global bitMaps = #() --Class:BitMap
 	global mapFile = #() --Class:stringName
 	persistent global assetPath
+	global subAssetFolders
+	global selectedSubPath
 	global nowPage = 1
 	global allPage = 0
 	global nowButtonIndex = 0
@@ -151,10 +153,10 @@
 	--end类型检查器
 	--*
 	--从路径和文件名搜索文件
-	fn getNewPathFromSelectPathAndFileName assetPath  maxName = 
+	fn getNewPathFromSelectPathAndFileName asset  maxName = 
 	(
 		local file = ()
-		file = getFiles (assetPath +"\\"+  maxName) recurse:false
+		file = getFiles (asset +"\\"+  maxName) recurse:false
 		--append newFilePath files
 		--print("NewPath:"+file as string)
 		file[1]
@@ -239,9 +241,7 @@
 							--progressUpdate ((loadedCount / files.count) * 100) -- 更新进度条
 						)
 					)
-					--progressEnd()                  -- 最后结束进度条显示
 				)
-
 			)
 			else 
 			(
@@ -381,42 +381,66 @@
 			GroupFlag = ((isGroupMember obj) and true)
 		GroupFlag
 	)
-----------------------------------------------------------------end方法-----------------------------------------------------
+	
+	fn setSubAssetPath myasset folderName =
+	(
+		local finalPath = myasset +"\\"+ folderName
+		finalPath
+	)
+	
+	fn getSubfolders folderPath = 
+	(
+		-- 确保传入的路径存在并是一个文件夹
+		if doesFileExist folderPath and (getDirectories (folderPath + "\\*")) != undefined then
+		(
+			local folderList = getDirectories (folderPath + "\\*") -- 获取所有子文件夹
+			local folderNames = for folder in folderList collect (getFilenameFile (trimRight folder "\\"))
+			return folderNames
+		)
+		else
+		(
+			format "提供的路径无效或不是一个文件夹: %\n" folderPath
+			return #() -- 返回空数组
+		)
+	)
+------------------------------------------------------------------end方法-----------------------------------------------------
 -------------------------------------------------------------------展卷栏-------------------------------------------------------
 	rollout pengpai1 "模型替换2024.12.6"
 	(
 		button btnSelectPath "选择资产路径加载模型" width:380 height:20 align:#center
-		button btnReplaceModel "替换模型" pos:[40,65] width:100 height:30 align:#cente
-		button btnGetFileFromAsset "从路径选取并替换模型" pos:[40,30] width:100 height:30 align:#cente
-		button bitmapImage  pos:[260,28] width:80 height:80 bitmap:(bitmap 128 128 color:black) pixelAspect:2
-		--label selectedModel "被替换模型" pos:[80,65] style_sunkenedge:true width:80 height:30 align:#center
-		label tag "已选中模型：" pos:[185,60]
-		--label assetModel "资产库模型" pos:[240,65] style_sunkenedge:true width:80 height:30 align:#center
-		GroupBox bitmapGroup "图片预览" pos:[10,110] width:380 height:380 
-		button bitmap1 "无文件" pos:[25 ,130] width:80 height:80
-		button bitmap2 "无文件" pos:[115,130] width:80 height:80
-		button bitmap3 "无文件" pos:[205,130] width:80 height:80
-		button bitmap4 "无文件" pos:[295,130] width:80 height:80
+		dropdownlist dirList "分类目录" width:380 height:20 align:#center
+		button btnReplaceModel "从选中模型替换" pos:[40,115] width:100 height:30 align:#cente
+		button btnGetFileFromAsset "从路径选取模型并替换" pos:[40,80] width:100 height:30 align:#cente
+		button bitmapImage pos:[260,78] width:80 height:80 bitmap:(bitmap 128 128 color:black) pixelAspect:2
+		--label selectedModel "被替换模型" pos:[80,115] style_sunkenedge:true width:80 height:30 align:#center
+
+		label tag "已选中模型：" pos:[185,110]
+		--label assetModel "资产库模型" pos:[240,115] style_sunkenedge:true width:80 height:30 align:#center
+		GroupBox bitmapGroup "图片预览" pos:[10,160] width:380 height:380
+		button bitmap1 "无文件" pos:[25,180] width:80 height:80
+		button bitmap2 "无文件" pos:[115,180] width:80 height:80
+		button bitmap3 "无文件" pos:[205,180] width:80 height:80
+		button bitmap4 "无文件" pos:[295,180] width:80 height:80
+
+		button bitmap5 "无文件" pos:[25,270] width:80 height:80
+		button bitmap6 "无文件" pos:[115,270] width:80 height:80
+		button bitmap7 "无文件" pos:[205,270] width:80 height:80
+		button bitmap8 "无文件" pos:[295,270] width:80 height:80
+
+		button bitmap9 "无文件" pos:[25,360] width:80 height:80
+		button bitmap10 "无文件" pos:[115,360] width:80 height:80
+		button bitmap11 "无文件" pos:[205,360] width:80 height:80
+		button bitmap12 "无文件" pos:[295,360] width:80 height:80
+
+		button bitmap13 "无文件" pos:[25,450] width:80 height:80
+		button bitmap14 "无文件" pos:[115,450] width:80 height:80
+		button bitmap15 "无文件" pos:[205,450] width:80 height:80
+		button bitmap16 "无文件" pos:[295,450] width:80 height:80
 		
-		button bitmap5 "无文件" pos:[25 ,220] width:80 height:80
-		button bitmap6 "无文件" pos:[115,220] width:80 height:80
-		button bitmap7 "无文件" pos:[205,220] width:80 height:80 
-		button bitmap8 "无文件" pos:[295,220] width:80 height:80 
-		
-		button bitmap9  "无文件" pos:[25 ,310] width:80 height:80
-		button bitmap10 "无文件" pos:[115,310] width:80 height:80
-		button bitmap11 "无文件" pos:[205,310] width:80 height:80
-		button bitmap12 "无文件" pos:[295,310] width:80 height:80
-		
-		button bitmap13 "无文件" pos:[25 ,400] width:80 height:80 
-		button bitmap14 "无文件" pos:[115,400] width:80 height:80
-		button bitmap15 "无文件" pos:[205,400] width:80 height:80
-		button bitmap16 "无文件" pos:[295,400] width:80 height:80
-		
-		button lastPage "<--上一页" pos:[60,520] width:100 height:30
-		button nextPage "下一页-->" pos:[240,520] width:100 height:30
-		button PageIndexButton "1/1" pos:[170,520] width:60 height:30
-		--progressbar progress_bar_item pos:[20,500] height:20 width:360 color:(color 255 100 100) orient:#horizontal
+		button lastPage "<--上一页" pos:[60,545] width:100 height:30
+		button nextPage "下一页-->" pos:[240,545] width:100 height:30
+		button PageIndexButton "1/1" pos:[170,545] width:60 height:30
+
 		
 		fn ReplaceNode fileP = 
 		(
@@ -489,6 +513,14 @@
 					
 				)
 		)
+		fn getSelectedSubPath =
+		(
+			subAssetFolders = getSubfolders assetPath
+			--print (subAssetFolders as string)
+			dirList.items = subAssetFolders
+			selectedSubPath = assetPath +"\\"+ dirList.items[dirList.selection]
+			selectedSubPath
+		)
 		-- rollout 打开事件
 		on pengpai1 open do
 		(
@@ -512,23 +544,21 @@
 			(
 				trimedPath = TrimStringWithEllipsis assetPath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
 				btnSelectPath.text = trimedPath
-				LoadBitmapsFromDirectory assetPath
+				LoadBitmapsFromDirectory (getSelectedSubPath ())
 				allPage = ((bitMaps.count/16)as integer)+1
 				updatePageIndex PageIndexButton
 				updateButtonIcon imageButtonList
 			)
-
 		)
 		--资产路径选择
 		on btnSelectPath pressed do
 		(
 			filePath = getSavePath caption:"选择文件"
-			if(filePath !=undefined) then
+			if(filePath != undefined) then
 			(
 				trimedPath = TrimStringWithEllipsis filePath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
 				btnSelectPath.text = trimedPath
-				assetPath = filePath
-				LoadBitmapsFromDirectory assetPath
+				LoadBitmapsFromDirectory (getSelectedSubPath())
 				allPage = ((bitMaps.count/16)as integer)+1
 				nowPage = 1
 				updatePageIndex PageIndexButton
@@ -536,6 +566,14 @@
 			)
 		)
 		--end资产路径选择
+		on dirList selected index do
+		(
+			LoadBitmapsFromDirectory (getSelectedSubPath())
+			allPage = ((bitMaps.count/16)as integer)+1
+			nowPage = 1
+			updatePageIndex PageIndexButton
+			updateButtonIcon imageButtonList
+		)
 		--页面更新逻辑
 		on nextPage pressed do
 		(
@@ -573,7 +611,8 @@
 				print("mapPath存在可以寻找对应模型")
 				local fileN = ((getFilenameFile mapPath)+".max")
 				--print(fileN as string)
-				local fileP = getNewPathFromSelectPathAndFileName assetPath fileN
+				
+				local fileP = getNewPathFromSelectPathAndFileName selectedSubPath fileN
 				if(fileP!=undefined) then
 				--print(fileP as string)
 					ReplaceNode fileP
@@ -724,10 +763,6 @@
 		--end图片按钮方法
 	--*
 	)
-	--rollout pengpai2 "相机管理"
-	--(
-	--	listbox camLlist
-	--)
 -------------------------------------------------------------------endUI-------------------------------------------------------
 	theNewFloater = newRolloutFloater "Grinning" 410 600--rollout宽度为RolloutFloater的宽度-10
 	addRollout pengpai1 theNewFloater 
