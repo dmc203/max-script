@@ -1,3 +1,4 @@
+--0000-2024.12.6 15.49
 --try(destroyDialog theNewFloater) catch()
 (
 ---------------------------------------------------变量------------------------------------------------
@@ -66,6 +67,7 @@
 				classOf oldObj == Editable_Patch or
 				classOf oldObj == NURBS_曲面) then
 			(
+				print ("oldObj"+ (classOf oldObj)as string)
 				newObj.position = oldObj.position
 				-- 设置旋转（需要转换为四元数或保持为欧拉角）
 				newObj.rotation =oldObj.rotation
@@ -89,38 +91,7 @@
 		)
 	)
 	--end替换物体
-	/*
-	--*
-	--替换并设置Transform信息
-	fn ReplaceAndSetTransform newOjb oldObj = 
-	(
-		local tempPos = oldObj.position
-		local tempRo = oldObj.rotation
-		local tempSc = oldObj.scale
-		ReplaceObj newObj oldObj	--oldObj被被删除
-		SetTransformInfo obj tempPostempRo tempSc
-	)
-	fn ReplaceAndSetPos newOjb oldObj = 
-	(
-		local tempPos = oldObj.position
-		ReplaceObj newObj oldObj	--oldObj被被删除
-		SetTransformInfoPos obj tempPos
-	)
-	fn ReplaceAndSetRotation newOjb oldObj = 
-	(
-		local tempRo = oldObj.rotation
-		ReplaceObj newObj oldObj	--oldObj被被删除
-		SetTransformInfoRoation obj tempRo
-	)
-	fn ReplaceAndSetScale newOjb oldObj = 
-	(
-		local tempSc = oldObj.scale
-		ReplaceObj newObj oldObj	--oldObj被被删除
-		SetTransformInfoScale obj tempSc
-	)
-	--end替换并设置Transform信息
-	--*
-	*/
+
 	--从数组中选取元素
 	fn getElementFromArry arry index =
 	(
@@ -135,14 +106,29 @@
 	fn getOuterFatherNode objs =
 	(
 		local f =#()
+		print("objs如下")
+		print(objs)
 		for o in objs do
 		(
-			if(o.parent==undefined) then
+			print("进入循环")
+			print(o.parent)
+			if(o.parent == undefined) then --当选中的物体中存在最外层节点时
 			(
-				append f o
+					append f o
 				--print("从选择的组中的到最外层父节点"+((classof o) as string))
-			)	
+			)
 		)
+		for o in objs do
+		(
+			if(o.parent != undefined) then --当选中的物体中存在最外层节点时
+			(
+				if((findItem  f o.parent)==0) then
+					append f o
+				--print("从选择的组中的到最外层父节点"+((classof o) as string))
+			)
+		)
+		print("f如下")
+		print(f as string)
 		f
 	)
 	--end从选择的组中的到最外层父节点
@@ -388,10 +374,16 @@
 	)
 	--end页面图像更新
 	--*
-
+	fn isGrouped objs = 
+	(
+		local GroupFlag = true
+		for obj in objs do
+			GroupFlag = ((isGroupMember obj) and true)
+		GroupFlag
+	)
 ----------------------------------------------------------------end方法-----------------------------------------------------
 -------------------------------------------------------------------展卷栏-------------------------------------------------------
-	rollout pengpai1 "模型替换"
+	rollout pengpai1 "模型替换2024.12.6"
 	(
 		button btnSelectPath "选择资产路径加载模型" width:380 height:20 align:#center
 		button btnReplaceModel "替换模型" pos:[40,65] width:100 height:30 align:#cente
@@ -436,7 +428,7 @@
 					(
 						--print("找到max文件")
 						local selectionFathers = getOuterFatherNode selection
-						--print("找到最外层节点"+selectionFathers as string)
+						print("找到最外层节点"+selectionFathers as string)
 						
 					)
 					if (selectionFathers.count > 1) then
@@ -459,18 +451,18 @@
 							if(newObjs!=undefined)then
 							(
 								local success=()
-								local tempArry = getOuterFatherNode newObjs--判断合并max文件是否为整组
+								local tempArry = getOuterFatherNode newObjs --判断最外层节点数量
+								local GroupFlag = isGrouped tempArry
 								print ("tempArry"+tempArry as string)
-								if (tempArry.count>1) then
+								if (GroupFlag != true) then
 								(
 									local myGroup = group newObjs
-									local newObj = tempArry[1]
 									success = ReplaceObj oldObj myGroup
 								)
 								else
 								(
 									local newObj = tempArry[1]
-									success = ReplaceObj oldObj newObjs[1]
+									success = ReplaceObj oldObj newObj
 									
 								)
 								if(success!=true) then
@@ -737,8 +729,8 @@
 	--	listbox camLlist
 	--)
 -------------------------------------------------------------------endUI-------------------------------------------------------
-theNewFloater = newRolloutFloater "Grinning" 410 600--rollout宽度为RolloutFloater的宽度-10
-addRollout pengpai1 theNewFloater
+	theNewFloater = newRolloutFloater "Grinning" 410 600--rollout宽度为RolloutFloater的宽度-10
+	addRollout pengpai1 theNewFloater 
 )
 
 --createDialog mainRollot 400 600
