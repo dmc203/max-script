@@ -57,27 +57,36 @@
 	)
 	--end设置Transform信息
 	--*
+	--类型检查器
+	fn classCheck obj =
+	(
+		if (superClassOf obj == GeometryClass or 
+			superClassOf obj == light or
+				classOf obj== Dummy) then
+		(
+			true
+		)
+		else 
+			false
+	)
+	--end类型检查器
 	--替换物体
 	fn ReplaceObj oldObj newObj = 
 	(
 		if(newObj!=undefined)then
 		(
-			if (classOf oldObj == PolyMeshObject or 
-				classOf oldObj== Editable_mesh or 
-				classOf oldObj == Editable_Poly or
-				classOf oldObj == Dummy or
-				classOf oldObj == Editable_Patch or
-				classOf oldObj == NURBS_曲面) then
-			(
-				print ("oldObj"+ (classOf oldObj)as string)
-				newObj.position = oldObj.position
-				-- 设置旋转（需要转换为四元数或保持为欧拉角）
-				newObj.rotation =oldObj.rotation
-				-- 设置缩放
-				newObj.scale = oldObj.scale
-				print (newObj.transform as string + oldObj.transform as string )
+			
+			if ((classCheck oldObj)==true) then
+			(	newObj.transform = oldObj.transform	
+				if(oldObj.parent!=newObj)then
+					newObj.parent = oldObj.parent
+				else
+					messageBox("oldObj.parent==newObj")
+				print (newObj.transform as string +"\n"+ oldObj.transform as string )
 				--newObj.transform = oldObj.transform
+				oldObj.parent=undefined
 				delete oldObj
+				--print("oldObj.parent:"+oldObj.parent as string)
 				true
 			)
 			else if(oldObj==undefined) then
@@ -104,59 +113,107 @@
 	)
 	--end从数组中选取元素
 	--*
-	--从选择的组中的到最外层父节点
-	fn getOuterFatherNode objs =
+	--获取选中物体的最外层节点
+	fn recursiveGetParent currentObj parents = -- 递归获取父级物体
+
 	(
-		local f =#()
-		print("objs如下")
-		print(objs)
-		for o in objs do
-		(
-			print("进入循环")
-			print(o.parent)
-			if(o.parent == undefined) then --当选中的物体中存在最外层节点时
+		if currentObj != undefined do (
+			local parentObj = currentObj.parent  -- 获取当前对象的父级
+			if parentObj != undefined then (
+				if findItem parents parentObj == 0 then
+					append parents parentObj  -- 将父级添加到列表中
+				recursiveGetParent parentObj parents  -- 递归调用以获取上一级的父级
+			)
+			else if parentObj == undefined then
 			(
-					append f o
-				--print("从选择的组中的到最外层父节点"+((classof o) as string))
+				if findItem parents currentObj == 0 then
+					append parents currentObj  --将父级添加到列表中
 			)
 		)
-		for o in objs do
+		
+	)
+	fn getAllParents objs =
+	(
+		local parents = #()  -- 创建一个空数组来存储父级物体
+		for obj in objs do
 		(
-			if(o.parent != undefined) then --当选中的物体中存在最外层节点时
-			(
-				if((findItem  f o.parent)==0) then
-					append f o
-				--print("从选择的组中的到最外层父节点"+((classof o) as string))
+			recursiveGetParent obj parents  -- 开始递归从传入的对象开始
+		)
+		return parents 
+	)
+
+	fn getOuterFatherNode objs = 
+	(
+		objs = getAllParents(objs)
+		local outerHeads=#()
+		for obj in objs do
+		(
+			if obj.parent==undefined do(
+				append outerHeads obj
 			)
 		)
-		print("f如下")
-		print(f as string)
-		f
+		outerHeads
 	)
-	--end从选择的组中的到最外层父节点
+	--
+
 	--*
-	--类型检查器
-	fn classCheck obj =
+	
+	--从所选物体中得到最外层物体
+	fn getOuterObjFormSelection objs =
 	(
-		if (classOf obj == PolyMeshObject or 
-		classOf obj == Editable_mesh or 
-		classOf obj == Editable_Poly or
-		classOf obj == Dummy or
-		classOf obj == Editable_Patch or
-		classOf obj == NURBS_曲面) then
+		objs = objs as Array
+		local fathers = #()
+		if(objs.count>1)then
 		(
-			true
+			for obj in objs do
+			(
+				if(obj.parent!=undefined)then--如果obj的父级没有定义那么obj就是最外层的
+				(
+					if(findItem objs obj.parent ==0 )then
+					append fathers obj
+				)
+				else
+					append fathers obj
+			)
 		)
-		else 
-			false
+		else
+			append fathers objs[1]
+		fathers
 	)
-	--end类型检查器
+	--
+
 	--*
+	--从选中物体
+	fn getOuterGroupHead objs = 
+	(
+		local groupHeads=#()
+		local outerHeads=#()
+		for obj in objs do
+		(
+			if(isGroupHead obj)then
+				append groupHeads obj
+		)
+		for groupHead in groupHeads do
+		(
+			if(groupHead.parent!=undefined)then
+			(
+				if((findItem groupHeads groupHead.parent)==0)then
+				(
+					append outerHeads groupHead
+				)
+			)
+			else
+			(
+				append outerHeads groupHead
+			)
+		)
+		outerHeads
+	)
 	--从路径和文件名搜索文件
 	fn getNewPathFromSelectPathAndFileName asset  maxName = 
 	(
 		local file = ()
-		file = getFiles (asset +"\\"+  maxName) recurse:false
+		file = getFiles (asset +"\\"+ maxName) recurse:false
 		--append newFilePath files
 		--print("NewPath:"+file as string)
 		file[1]
@@ -204,6 +261,7 @@
 		undo off(
 			bitMaps = #()
 			-- 检查目录是否存在
+			if(directoryPath!=undefined)then
 			if doesFileExist directoryPath then 
 			(
 				-- 获取目录中的所有文件名
@@ -265,7 +323,6 @@
 				append cameraList obj  -- 将相机对象添加到列表中
 			)
 		)
-		
 		return cameraList  -- 返回包含所有相机的列表
 	)
 	--end遍历场景返回相机列表
@@ -332,7 +389,6 @@
 					(
 						--print (classof (bitMaps[mapIndex]))
 						--imageButtonList[i].images = #(bitMaps[mapIndex],undefined, 1,1,1,1,1)
-						imageButtonList[i].iconSize = [80,80]
 						if(bitMaps[mapIndex]!=undefined) then
 							imageButtonList[i].images = #(bitMaps[mapIndex], undefined, 1,1,1,1,1 )
 						else
@@ -343,9 +399,7 @@
 						--print(bitMaps[mapIndex])
 					)
 					else
-					(
-						imageButtonList[i].iconSize = [80,80]
-						local blackimage = bitmap 64 64 color:black
+					(						local blackimage = bitmap 64 64 color:black
 						imageButtonList[i].images = #(blackimage, undefined, 1,1,1,1,1 )
 					)
 				)
@@ -403,9 +457,49 @@
 			return #() -- 返回空数组
 		)
 	)
+	--选中物体列表是否为完整组并选中整组物体
+	fn isGroupValid objs =
+	(
+		outerNode = getOuterObjFormSelection objs
+		getOuterObjFormSelection objs
+		if(outerNode.count>1)then
+			false
+		else
+		(
+			--if(isGroupHead outerNode[1]==true)then
+			--(
+			--	setGroupOpen outerNode[1] false
+			--)
+			true
+		)
+	)
+	--替换标签检查选中物体列表是否满足替换条件
+	fn ReplaceFlag objs =
+	(
+		
+		if(objs!=undefined)then
+		(
+			if(objs.count>1)then
+			(
+				if(isGroupValid objs)then
+					true
+				else
+				(
+					messageBox("选中方式非法")
+					false
+				)
+			)
+			else
+				true
+		)
+		else
+			messageBox("ReplaceFlag：传入参数未定义")
+	)
+	--
+	
 ------------------------------------------------------------------end方法-----------------------------------------------------
 -------------------------------------------------------------------展卷栏-------------------------------------------------------
-	rollout pengpai1 "模型替换2024.12.6"
+	rollout pengpai1 "模型替换"
 	(
 		button btnSelectPath "选择资产路径加载模型" width:380 height:20 align:#center
 		dropdownlist dirList "分类目录" width:380 height:20 align:#center
@@ -440,86 +534,99 @@
 		button lastPage "<--上一页" pos:[60,545] width:100 height:30
 		button nextPage "下一页-->" pos:[240,545] width:100 height:30
 		button PageIndexButton "1/1" pos:[170,545] width:60 height:30
-
 		
 		fn ReplaceNode fileP = 
 		(
+			selectionBake = selection as Array
 			if(selection.count==0) then
 				messageBox "请在场景内选择被替换的物体"
-			else
+			else if(ReplaceFlag selection)then
+			(
+				--print("找到max文件")
+				local selectionFathers = getOuterObjFormSelection selection
+				--print("找到最外层节点"+selectionFathers as string)
+				if(selectionFathers.count > 1) then
 				(
-					if(fileP != undefined) then 
+					messageBox "请选择在同一组内的物体"
+				)
+				else
+				(
+					local oldObj = selectionFathers[1]
+					--关闭组用于判断当用户
+					if(isOpenGroupHead oldObj == true)then
 					(
-						--print("找到max文件")
-						local selectionFathers = getOuterFatherNode selection
-						print("找到最外层节点"+selectionFathers as string)
-						
+						setGroupOpen oldObj false
 					)
-					if (selectionFathers.count > 1) then
+					local classFlag = true
+					for obj in selection while (classFlag == true) do
 					(
-						messageBox "请选择在同一组内的物体"
+						classFlag = (classCheck obj)and classFlag
 					)
-					else
+					--print(classFlag)
+					if(classFlag) then --类型判断
 					(
-						local oldObj = selectionFathers[1]
-						local classFlag=true
-						for obj in selection while (classFlag == true) do
-						(
-							classFlag = (classCheck obj)and classFlag
-							
-						)
-						--print(classFlag)
-						if(classFlag) then --类型判断
-						(
-							local newObjs = (MergeMaxFileAndReturnObjects fileP)
-							if(newObjs!=undefined)then
+						local newObjs = (MergeMaxFileAndReturnObjects fileP)
+						if(newObjs!=undefined )then--当用户选择模型时
+							if(newObjs.count!=0)then--当用户没有选择跳过时
 							(
 								local success=()
 								local tempArry = getOuterFatherNode newObjs --判断最外层节点数量
-								local GroupFlag = isGrouped tempArry
-								print ("tempArry"+tempArry as string)
-								if (GroupFlag != true) then
+								local GroupFlag = isGrouped newObjs
+								print ("tempArry" + tempArry as string)
+								print ("oldObjs" + oldObj as string)
+								print ("newObjs" + newObjs as string)
+								--print(classOf newObjs)
+								if (tempArry.count == 1) then
 								(
+									print("1")
+									success = ReplaceObj oldObj tempArry[1]
+									
+								)
+								else if(tempArry.count>1)then
+								(
+									print("2")
 									local myGroup = group newObjs
 									success = ReplaceObj oldObj myGroup
 								)
-								else
-								(
-									local newObj = tempArry[1]
-									success = ReplaceObj oldObj newObj
-									
-								)
 								if(success!=true) then
 								(
+									--print("替换失败")
+									--print(oldObj)
+									--print(tempArry)
 									delete newObjs
+									select selectionBake
 								)
 								else
-									(
-										select newObjs
-										actionMan.executeAction 0 "50001"  -- Tools: 选择并移动
-									)
+								(
+									select newObjs
+									actionMan.executeAction 0 "50001"  -- Tools: 选择并移动
+								)
 							)
-						)
-						else
-						(	local unsupportList = #()
-							for obj in selection do
-							(
-								if(classCheck obj == false) then
-									append unsupportList (classof obj)
-							)
-							messageBox ("场景中被替换的物体存在不支持类型,不支持的类型为：" + unsupportList as string+"\n如果可以请尝试转化为可编辑网格")
-						)
 					)
-					
+					else
+					(	
+						local unsupportList = #()
+						for obj in selection do
+						(
+							if(classCheck obj == false) then
+								append unsupportList (classof obj)
+						)
+						messageBox ("场景中被替换的物体存在不支持类型,不支持的类型为：" + unsupportList as string+"\n如果可以请尝试转化为可编辑网格")
+					)
 				)
+			)
+			
 		)
 		fn getSelectedSubPath =
 		(
 			subAssetFolders = getSubfolders assetPath
 			--print (subAssetFolders as string)
-			dirList.items = subAssetFolders
-			selectedSubPath = assetPath +"\\"+ dirList.items[dirList.selection]
-			selectedSubPath
+			if(subAssetFolders.count>0)then
+			(
+				dirList.items = subAssetFolders
+				selectedSubPath = assetPath +"\\"+ dirList.items[dirList.selection]
+				selectedSubPath
+			)
 		)
 		-- rollout 打开事件
 		on pengpai1 open do
@@ -553,11 +660,12 @@
 		--资产路径选择
 		on btnSelectPath pressed do
 		(
-			filePath = getSavePath caption:"选择文件"
-			if(filePath != undefined) then
+			assetPath = getSavePath caption:"选择文件"
+			if(assetPath != undefined) then
 			(
-				trimedPath = TrimStringWithEllipsis filePath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
+				trimedPath = TrimStringWithEllipsis assetPath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
 				btnSelectPath.text = trimedPath
+				--print("Load")
 				LoadBitmapsFromDirectory (getSelectedSubPath())
 				allPage = ((bitMaps.count/16)as integer)+1
 				nowPage = 1
@@ -602,17 +710,18 @@
 		on btnReplaceModel pressed do
 		(
 			local mapindex = (nowPage-1)*16+nowButtonIndex
-			print(mapindex)
+			--print(mapindex)
 			local mapPath = getElementFromArry mapFile mapindex--判断索引位置的图像路径是否存在
-			print (mapFile.count)
+			--print (mapFile.count)
 			--print("替换按钮被点击mapPath："+(mapPath as string)+"  nowButtonIndex:"+(nowButtonIndex as string))
 			if(mapPath!=undefined) then
 			(
-				print("mapPath存在可以寻找对应模型")
+				--print("mapPath存在可以寻找对应模型")
 				local fileN = ((getFilenameFile mapPath)+".max")
 				--print(fileN as string)
 				
 				local fileP = getNewPathFromSelectPathAndFileName selectedSubPath fileN
+				--print("fileP:" + fileP as string)
 				if(fileP!=undefined) then
 				--print(fileP as string)
 					ReplaceNode fileP
