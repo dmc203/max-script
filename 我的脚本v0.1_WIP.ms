@@ -16,6 +16,20 @@
 -------------------------------------------------全局变量----------------------------------------------
 ---------------------------------------------------方法------------------------------------------------
 	--*
+	--
+	fn vectorDivide v1 v2 =
+	(
+		--检查是否试图进行非法操作，如被零除
+		if (v2.x == 0 or v2.y == 0 or v2.z == 0) then
+		(
+			throw "Division by zero in one of the vector components."
+		)
+		else
+		(
+			[v1.x / v2.x, v1.y / v2.y, v1.z / v2.z]
+		)
+	)
+	--
 	--设置Transform信息
 	fn SetTransformInfo obj pos ro sc =
 	(
@@ -85,7 +99,6 @@
 				print (newObj.transform as string +"\n"+ oldObj.transform as string )
 				--newObj.transform = oldObj.transform
 				oldObj.parent=undefined
-				delete oldObj
 				--print("oldObj.parent:"+oldObj.parent as string)
 				true
 			)
@@ -496,19 +509,19 @@
 			messageBox("ReplaceFlag：传入参数未定义")
 	)
 	--
-	
 ------------------------------------------------------------------end方法-----------------------------------------------------
 -------------------------------------------------------------------展卷栏-------------------------------------------------------
 	rollout pengpai1 "模型替换"
 	(
 		button btnSelectPath "选择资产路径加载模型" width:380 height:20 align:#center
 		dropdownlist dirList "分类目录" width:380 height:20 align:#center
-		button btnReplaceModel "从选中模型替换" pos:[40,115] width:100 height:30 align:#cente
+		button btnReplaceModel "替换" pos:[40,115] width:100 height:30 align:#cente
 		button btnGetFileFromAsset "从路径选取模型并替换" pos:[40,80] width:100 height:30 align:#cente
-		button bitmapImage pos:[260,78] width:80 height:80 bitmap:(bitmap 128 128 color:black) pixelAspect:2
+		button bitmapImage pos:[300,78] width:80 height:80 bitmap:(bitmap 128 128 color:black) pixelAspect:2
 		--label selectedModel "被替换模型" pos:[80,115] style_sunkenedge:true width:80 height:30 align:#center
-
-		label tag "已选中模型：" pos:[185,110]
+		checkbox sizeClampCheckBox "尺寸钳制" pos:[140,125]
+		dropdownlist xyzClamp pos:[210,122] width:40 height:20 items:#("x","y","z") visible:false
+		label tag "替换模型：" pos:[235,100]
 		--label assetModel "资产库模型" pos:[240,115] style_sunkenedge:true width:80 height:30 align:#center
 		GroupBox bitmapGroup "图片预览" pos:[10,160] width:380 height:380
 		button bitmap1 "无文件" pos:[25,180] width:80 height:80
@@ -534,7 +547,62 @@
 		button lastPage "<--上一页" pos:[60,545] width:100 height:30
 		button nextPage "下一页-->" pos:[240,545] width:100 height:30
 		button PageIndexButton "1/1" pos:[170,545] width:60 height:30
-		
+		--
+		-- 手动实现 max 功能
+		fn myMax a b = 
+		(
+			if a > b then a else b
+		)
+
+		-- 手动实现 min 功能
+		fn myMin a b = 
+		(
+			if a < b then a else b
+		)
+		fn getExtentsFromObjArray objs = 
+		(
+			local maxpoint = [1e-30,1e-30,1e-30]
+			local minpoint = [1e+30,1e+30,1e+30]
+			for obj in objs do
+			(
+				maxpoint.x = myMax maxpoint.x obj.max.x 
+				maxpoint.y = myMax maxpoint.y obj.max.y 
+				maxpoint.z = myMax maxpoint.z obj.max.z 
+				minpoint.x = myMin minpoint.x obj.min.x
+				minpoint.y = myMin minpoint.y obj.min.y
+				minpoint.z = myMin minpoint.z obj.min.z
+			)
+			local enxtent = maxpoint - minpoint
+			
+		)
+		fn sizeClamp oldObj newObj oldExtnets newExtnets = 
+		(
+			local coefficientVector = vectorDivide oldExtnets newExtnets
+			local coefficient=1.0
+			local ClampAxis = xyzClamp.items[xyzClamp.selection]
+			--print("ClampAxis:" + ClampAxis)
+			if ClampAxis=="x" then
+				coefficient = coefficientVector.x
+			else if ClampAxis=="y" then
+				coefficient = coefficientVector.y
+			else if ClampAxis=="z" then
+				coefficient = coefficientVector.z
+			else
+				messageBox("未知错误未找到轴")
+			print("coefficient" + coefficient as string)
+			newObj.scale *= coefficient
+		)
+		fn getSelectedSubPath =
+		(
+			subAssetFolders = getSubfolders assetPath
+			--print (subAssetFolders as string)
+			if(subAssetFolders.count>0)then
+			(
+				dirList.items = subAssetFolders
+				selectedSubPath = assetPath +"\\"+ dirList.items[dirList.selection]
+				selectedSubPath
+			)
+		)
 		fn ReplaceNode fileP = 
 		(
 			selectionBake = selection as Array
@@ -552,11 +620,15 @@
 				else
 				(
 					local oldObj = selectionFathers[1]
+					local oldObjs = selection
 					--关闭组用于判断当用户
 					if(isOpenGroupHead oldObj == true)then
 					(
 						setGroupOpen oldObj false
+						select oldObj
+						oldObjs = selection
 					)
+					
 					local classFlag = true
 					for obj in selection while (classFlag == true) do
 					(
@@ -570,23 +642,53 @@
 							if(newObjs.count!=0)then--当用户没有选择跳过时
 							(
 								local success=()
-								local tempArry = getOuterFatherNode newObjs --判断最外层节点数量
+								local newObj = getOuterFatherNode newObjs --判断最外层节点数量
 								local GroupFlag = isGrouped newObjs
-								print ("tempArry" + tempArry as string)
-								print ("oldObjs" + oldObj as string)
+								print ("newObj" + newObj as string)
+								print ("oldObj" + oldObj as string)
 								print ("newObjs" + newObjs as string)
 								--print(classOf newObjs)
-								if (tempArry.count == 1) then
+								if (newObj.count == 1) then
 								(
 									print("1")
-									success = ReplaceObj oldObj tempArry[1]
-									
+									success = ReplaceObj oldObj newObj[1]
+
+									if(sizeClampCheckBox.checked)then
+									(
+										--需要传入所有需要参与计算的物体数组
+										local newObjExtnets = getExtentsFromObjArray newObjs
+										print("newObjExtnets"+ newObjExtnets as string)
+										local oldObjExtnets = getExtentsFromObjArray oldObjs
+										print("oldObjExtnets"+ oldObjExtnets as string)
+										--需要传入所有需要参与计算的物体数组
+										sizeClamp oldObj newObj oldObjExtnets newobjExtnets
+										print("转化前新物体的extent:"+ newObjExtnets as string)
+										print("转化前旧物体的extent:"+ oldObjExtnets as string)
+										print("转化后新物体的extent:"+ (getExtentsFromObjArray newObjs)as string)
+									)
+									delete oldObj
 								)
-								else if(tempArry.count>1)then
+								else if(newObj.count>1)then
 								(
 									print("2")
 									local myGroup = group newObjs
 									success = ReplaceObj oldObj myGroup
+									
+									if(sizeClampCheckBox.checked)then
+									(
+										--需要传入所有需要参与计算的物体数组
+										local newObjExtnets = getExtentsFromObjArray newObjs
+										print("newObjExtnets"+ newObjExtnets as string)
+										local oldObjExtnets = getExtentsFromObjArray oldObjs
+										print("oldObjExtnets"+ oldObjExtnets as string)
+										--需要传入完整的组
+										sizeClamp oldObj myGroup oldObjExtnets newobjExtnets
+										print("转化前新物体的extent:"+ newObjExtnets as string)
+										print("转化前旧物体的extent:"+ oldObjExtnets as string)
+										print("转化后新物体的extent:"+ (getExtentsFromObjArray newObjs)as string)
+									)
+									--
+									delete oldObj
 								)
 								if(success!=true) then
 								(
@@ -617,17 +719,6 @@
 			)
 			
 		)
-		fn getSelectedSubPath =
-		(
-			subAssetFolders = getSubfolders assetPath
-			--print (subAssetFolders as string)
-			if(subAssetFolders.count>0)then
-			(
-				dirList.items = subAssetFolders
-				selectedSubPath = assetPath +"\\"+ dirList.items[dirList.selection]
-				selectedSubPath
-			)
-		)
 		-- rollout 打开事件
 		on pengpai1 open do
 		(
@@ -657,6 +748,12 @@
 				updateButtonIcon imageButtonList
 			)
 		)
+		--尺寸钳制开关事件
+		on sizeClampCheckBox changed theState do
+		(
+			xyzClamp.visible = theState
+		)
+		--
 		--资产路径选择
 		on btnSelectPath pressed do
 		(
@@ -685,15 +782,16 @@
 		--页面更新逻辑
 		on nextPage pressed do
 		(
-			
-			if((nowPage+1) <= allPage) do
-			(
-				nowPage+=1
-				updatePageIndex PageIndexButton
-				updateButtonIcon imageButtonList
-				
-			)
+			undo off(
+				if((nowPage+1) <= allPage) do
+				(
+					nowPage+=1
+					updatePageIndex PageIndexButton
+					updateButtonIcon imageButtonList
+					
+				)
 			--print (allPage)
+			)
 		)
 		on lastPage pressed do
 		(
@@ -709,24 +807,26 @@
 		--模型替换方法
 		on btnReplaceModel pressed do
 		(
-			local mapindex = (nowPage-1)*16+nowButtonIndex
-			--print(mapindex)
-			local mapPath = getElementFromArry mapFile mapindex--判断索引位置的图像路径是否存在
-			--print (mapFile.count)
-			--print("替换按钮被点击mapPath："+(mapPath as string)+"  nowButtonIndex:"+(nowButtonIndex as string))
-			if(mapPath!=undefined) then
-			(
-				--print("mapPath存在可以寻找对应模型")
-				local fileN = ((getFilenameFile mapPath)+".max")
-				--print(fileN as string)
-				
-				local fileP = getNewPathFromSelectPathAndFileName selectedSubPath fileN
-				--print("fileP:" + fileP as string)
-				if(fileP!=undefined) then
-				--print(fileP as string)
-					ReplaceNode fileP
-				else
-					messageBox "未找到图片所对应的模型"
+			undo off(
+				local mapindex = (nowPage-1)*16+nowButtonIndex
+				--print(mapindex)
+				local mapPath = getElementFromArry mapFile mapindex--判断索引位置的图像路径是否存在
+				--print (mapFile.count)
+				--print("替换按钮被点击mapPath："+(mapPath as string)+"  nowButtonIndex:"+(nowButtonIndex as string))
+				if(mapPath!=undefined) then
+				(
+					--print("mapPath存在可以寻找对应模型")
+					local fileN = ((getFilenameFile mapPath)+".max")
+					--print(fileN as string)
+					
+					local fileP = getNewPathFromSelectPathAndFileName selectedSubPath fileN
+					--print("fileP:" + fileP as string)
+					if(fileP!=undefined) then
+					--print(fileP as string)
+						ReplaceNode fileP
+					else
+						messageBox "未找到图片所对应的模型"
+				)
 			)
 		)
 		--end替换方法
