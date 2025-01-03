@@ -2,7 +2,6 @@
 --try(destroyDialog theNewFloater) catch()
 (
 ---------------------------------------------------变量------------------------------------------------
-	
 	global bitMaps = #() --Class:BitMap
 	global mapFile = #() --Class:stringName
 	persistent global assetPath
@@ -10,13 +9,14 @@
 	global selectedSubPath
 	global nowPage = 1
 	global allPage = 0
-	global nowButtonIndex = 0
+	global nowPressedButtonIndex = 0
 	global imageButtonList =#()
+	global nowSelectedFilePath = ()
+	global pengpaiInstance = undefined
 	if(assetPath == undefined) then assetPath = ()
 -------------------------------------------------全局变量----------------------------------------------
 ---------------------------------------------------方法------------------------------------------------
 	--*
-	--
 	fn vectorDivide v1 v2 =
 	(
 		--检查是否试图进行非法操作，如被零除
@@ -29,7 +29,6 @@
 			[v1.x / v2.x, v1.y / v2.y, v1.z / v2.z]
 		)
 	)
-	--
 	--设置Transform信息
 	fn SetTransformInfo obj pos ro sc =
 	(
@@ -128,7 +127,6 @@
 	--*
 	--获取选中物体的最外层节点
 	fn recursiveGetParent currentObj parents = -- 递归获取父级物体
-
 	(
 		if currentObj != undefined do (
 			local parentObj = currentObj.parent  -- 获取当前对象的父级
@@ -154,7 +152,6 @@
 		)
 		return parents 
 	)
-
 	fn getOuterFatherNode objs = 
 	(
 		objs = getAllParents(objs)
@@ -168,9 +165,7 @@
 		outerHeads
 	)
 	--
-
 	--*
-	
 	--从所选物体中得到最外层物体
 	fn getOuterObjFormSelection objs =
 	(
@@ -180,7 +175,7 @@
 		(
 			for obj in objs do
 			(
-				if(obj.parent!=undefined)then--如果obj的父级没有定义那么obj就是最外层的
+				if(obj.parent!=undefined)then --如果obj的父级没有定义那么obj就是最外层的
 				(
 					if(findItem objs obj.parent ==0 )then
 					append fathers obj
@@ -223,12 +218,13 @@
 		outerHeads
 	)
 	--从路径和文件名搜索文件
-	fn getNewPathFromSelectPathAndFileName asset  maxName = 
+	fn SerchWithPathAndFileName path  fileName = 
 	(
 		local file = ()
-		file = getFiles (asset +"\\"+ maxName) recurse:false
-		--append newFilePath files
-		--print("NewPath:"+file as string)
+		file = getFiles (path +"\\"+ fileName) recurse:false
+
+		print("asset:"+ path as string +"   fileName："+ fileName as string)
+		print("拼接后使用GetFile的路径：" + file as string)
 		file[1]
 	)
 	--end从路径和文件名搜索文件
@@ -244,7 +240,7 @@
 			
 			local oldObj = (geometry as Array)
 			-- 合并新的 .max 文件
-			mergeMAXFile filePath
+			mergeMAXFile filePath #mergeDups #useMergedMtlDups quiet:true
 			
 			-- 创建一个数组来存储新合并的对象
 			local newObjects = #()
@@ -305,8 +301,7 @@
 							copy map2 map1
 							append mapFile file 
 							append bitMaps map1          
-							free map2     
-							
+							free map2
 							--释放加载的原图像
 							--loadedCount += 1             -- 更新已加载计数
 							--progressUpdate ((loadedCount / files.count) * 100) -- 更新进度条
@@ -402,18 +397,21 @@
 					(
 						--print (classof (bitMaps[mapIndex]))
 						--imageButtonList[i].images = #(bitMaps[mapIndex],undefined, 1,1,1,1,1)
-						if(bitMaps[mapIndex]!=undefined) then
-							imageButtonList[i].images = #(bitMaps[mapIndex], undefined, 1,1,1,1,1 )
+						if(bitMaps[mapIndex] != undefined) then
+							try(imageButtonList[i].images = #(bitMaps[mapIndex], undefined, 1,1,1,1,1 )) 
+								catch(print("贴图加载异常"))
 						else
 						(
 							local blackimage = bitmap 64 64 color:black
-							imageButtonList[i].images = #(blackimage, undefined, 1,1,1,1,1 )
+							try(imageButtonList[i].images = #(blackimage, undefined, 1,1,1,1,1 ))
+								catch(print("贴图加载异常"))
 						)
 						--print(bitMaps[mapIndex])
 					)
 					else
 					(						local blackimage = bitmap 64 64 color:black
-						imageButtonList[i].images = #(blackimage, undefined, 1,1,1,1,1 )
+						try(imageButtonList[i].images = #(blackimage, undefined, 1,1,1,1,1 ))
+							catch()
 					)
 				)
 		)
@@ -435,7 +433,8 @@
 		local mapIndex = (nowPage-1)*16+i
 		if(mapIndex<=bitMaps.count) then
 		(
-			bitmapImage.images = #(bitMaps[mapIndex], undefined, 1,1,1,1,1 )
+			try(bitmapImage.images = #(bitMaps[mapIndex], undefined, 1,1,1,1,1 ))
+				catch(print("贴图加载异常"))
 		)
 		
 	)
@@ -479,10 +478,10 @@
 			false
 		else
 		(
-			--if(isGroupHead outerNode[1]==true)then
-			--(
-			--	setGroupOpen outerNode[1] false
-			--)
+			if(isGroupHead outerNode[1]==true)then
+			(
+				setGroupOpen outerNode[1] false
+			)
 			true
 		)
 	)
@@ -509,18 +508,254 @@
 			messageBox("ReplaceFlag：传入参数未定义")
 	)
 	--
+	fn remainder a b =
+	(
+		-- 定义两个数字
+		local a = 10.0
+		local b = 3.0
+		-- 计算商的整数部分
+		local quotient = floor(a / b)
+		-- 计算余数
+		local remainder = a - (quotient * b)
+	)
 ------------------------------------------------------------------end方法-----------------------------------------------------
 -------------------------------------------------------------------展卷栏-------------------------------------------------------
+	
+	
+	rollout fission "裂变窗口"
+	(
+		dropdownlist FissionMethod "映射关系"items:#("x","y","z")
+		listbox listbox1 "原物体列表" pos:[20,50] width:100 height:10--height=140
+		listbox listbox2 "裂变物体列表" pos:[180,50] width:100 height:10--height=140
+		button  AddToOriginObjList "添加原物体" pos:[20,200] width:100 height:40
+		button AddToFissionObjList "添加裂变物体" pos:[180,200]width:100 height:40
+		button AddAllToFissionObjList "添加目录下的所有物体" pos:[180,240]width:100 height:40	
+		button StartFission "开始裂变" align:#center width:60 height:30
+		local originObjs = #() --物体列表
+		local originObjsName = #() --物体名字列表
+		---------------------------------每种裂变对应关系需要的数据结构---------------------------------
+		--方法1，一对多，每次对所有被裂变的物体进行裂变，选择了最多裂变物体的模型为基准产生裂变方案数量
+		--local M1_selectedIndex = 0
+		locaL M1_fissionObjsPathsArray = #(#())
+		locaL M1_fissionObjsNameArray = #(#())
+		--end方法1
+		---------------------------------end每种裂变对应关系需要的数据结构---------------------------------
+
+		--------------------------------------执行器需要的裂变数据-------------------------------------
+		local objPairsArray =#()
+		--------------------------------------end执行器需要的裂变数据-------------------------------------
+		--物体对结构，通过物体对列表
+		struct objPair (objs , filePath)
+		local objPairList = #()
+		--构建物体对方法
+		fn MakeObjPair originObjs newObjPath =
+		(
+			objPair objs:objs filePath:filePath
+			objPair
+		)
+		--物体对列表构建器，返回每次替换时需要替换的物体对列表的列表
+		fn ObjPairArrayMaker oldObjs newObjs =
+		(
+			case FissionMethod.selection of
+			(
+				--执行M1
+				1:
+				(
+					for i=1 to originObjs.count do (
+						for fissionobj in M1_fissionObjsPathsArray[i] do (
+							MakeObjPair originObjs[i] fissionobj
+						)
+					)
+				)
+			)
+		)
+		--添加原物体方法
+		fn addOriginObj objs = 
+		(
+			case FissionMethod.selection of
+			(
+				1:
+				(
+					if(objs.count==0)then
+						messagebox"请选择物体"
+					else(
+						local selectionFathers = getOuterObjFormSelection objs
+						if(selectionFathers.count>1)then
+							messagebox"请选择在同一组内的物体"
+						else
+						(
+							if(findItem originObjs selectionFathers[1] == 0) then
+							(
+								append originObjs selectionFathers[1]
+								append originObjsName selectionFathers[1].name as string
+								listbox1.items = originObjsName	
+							)
+						)
+					)
+				)
+			)
+		)
+		fn deleteObjInfo num = 
+		(
+			case FissionMethod.selection of
+			(
+				1:
+				(
+					--print(originObjsName as string)
+					if(originObjsName[num] != undefined and originObjsName[num] != #())then
+					(
+						deleteItem originObjsName num
+						deleteItem originObjs num
+					)
+					if(M1_fissionObjsPathsArray[num] != undefined and M1_fissionObjsPathsArray[num] != #())then
+					(
+						deleteItem M1_fissionObjsPathsArray num
+						deleteItem M1_fissionObjsNameArray num
+						listbox1.items = originObjsName
+					)
+					if(listbox1.selection>0)then
+					(
+						if(M1_fissionObjsNameArray[listbox1.selection]==undefined)then
+						M1_fissionObjsNameArray[listbox1.selection]=#()
+						listbox2.items = M1_fissionObjsNameArray[listbox1.selection]
+					)
+					else
+						listbox2.items = #()
+				)
+			)
+			
+		)
+		--添加裂变物体方法
+		fn addFissionObj filePath =
+		(
+			case FissionMethod.selection of
+			(
+				--执行M1
+				1:
+				(
+					--通过名称列表找到物体实例
+					--判断数量，防止超过M1_fissionObjsPathsArray的范围
+					if(listbox1.selection>0)then
+					(
+							--从pengpaiInstance得到当前所选物体的路径
+							--得到路径后将信息处理后添加到裂变信息列表
+							--创建数组
+							if(M1_fissionObjsPathsArray[listbox1.selection] == undefined)then
+								M1_fissionObjsPathsArray[listbox1.selection] = #()
+							if(M1_fissionObjsNameArray[listbox1.selection] == undefined)then
+								M1_fissionObjsNameArray[listbox1.selection] = #()
+							--判断是否重复存在
+							if(finditem M1_fissionObjsPathsArray[listbox1.selection] filePath == 0)then
+							(
+								append M1_fissionObjsPathsArray[listbox1.selection] filePath
+								append M1_fissionObjsNameArray[listbox1.selection] ((getFilenameFile filePath) as string)
+								--同时更新列表内容
+								listbox2.items = M1_fissionObjsNameArray[listbox1.selection]
+							)
+							else
+							(
+								messagebox"请勿重复添加物体"
+							)
+					)
+				)
+			)
+		)
+		fn addAllFissionObj =
+		(
+			case FissionMethod.selection of
+			(
+				1:
+				(
+					local mapfiles = pengpaiInstance.getAllFilePath()
+					for myfile in mapfiles do
+					(
+						if(findItem M1_fissionObjsPathsArray myfile==0) then
+						(
+							append M1_fissionObjsPathsArray[listbox1.selection] myfile
+							append M1_fissionObjsNameArray[listbox1.selection] ((getFilenameFile myfile) as string)
+						)
+					)
+					listbox2.items = M1_fissionObjsNameArray[listbox1.selection]
+				)
+			)
+		)
+		--选择器,根据列表信息返回对应的执行器需要的数据
+		fn Selecter = 
+		(
+
+		)
+		--执行器，根据物体对列表的列表逐步执行物体替换
+		fn Executor =
+		(
+
+		)
+		on listbox1 selected num do
+		(
+			if(num>0)then
+			(
+				case FissionMethod.selection of
+				(
+					--执行M1
+					1:
+					(
+						--判断裂变物体路径数组在num下的项是否定义
+						if(M1_fissionObjsPathsArray[num]!=undefined)then
+							listbox2.items = M1_fissionObjsNameArray[num]
+						else
+							listbox2.items = #()
+						--判断所选物体是否任然存在
+						print(originObjs[num])
+						if(isDeleted  originObjs[num]==true)then
+							deleteObjInfo num
+						else
+							select originObjs[num]
+					)
+				)
+			)
+			
+		)
+		on listbox1 rightClick num do
+		(
+			
+			deleteObjInfo num
+		)
+		on AddToOriginObjList pressed do
+		(
+			print("添加原物体被点击")
+			addOriginObj selection
+		)
+		on AddToFissionObjList pressed do
+		(
+			print("添加到裂变被点击")
+			local filePath = pengpaiInstance.getNowSelectedFilePath()
+			if(filePath!=undefined)then
+			(
+				addFissionObj filePath
+			)
+			else
+			(
+				messageBox"裂变模型不存在请检查路径模型"
+			)
+		)
+		on AddAllToFissionObjList pressed do
+		(
+			print("全选按钮被点击")
+			addAllFissionObj()
+		)
+		on fission close do
+		(
+			pengpaiInstance.btnOpenFission.state = off
+		)
+	)
 	rollout pengpai1 "模型替换"
 	(
-		button btnSelectPath "选择资产路径加载模型" width:380 height:20 align:#center
-		dropdownlist dirList "分类目录" width:380 height:20 align:#center
+		button btnSelectPath "选择资产路径" width:380 height:20 align:#center
+		dropdownlist dirList "子目录" width:380 height:20 align:#center
 		button btnReplaceModel "替换" pos:[40,115] width:100 height:30 align:#cente
-		button btnGetFileFromAsset "从路径选取模型并替换" pos:[40,80] width:100 height:30 align:#cente
+		checkbutton  btnOpenFission "打开裂变窗口" pos:[40,80] width:100 height:30 align:#cente
 		button bitmapImage pos:[300,78] width:80 height:80 bitmap:(bitmap 128 128 color:black) pixelAspect:2
-		--label selectedModel "被替换模型" pos:[80,115] style_sunkenedge:true width:80 height:30 align:#center
-		checkbox sizeClampCheckBox "尺寸钳制" pos:[140,125]
-		dropdownlist xyzClamp pos:[210,122] width:40 height:20 items:#("x","y","z") visible:false
+		checkbox sizeClampCheckBox "尺寸钳制" pos:[140,125] 
+		dropdownlist xyzClamp pos:[210,122] width:50 height:20 items:#("x轴","y轴","z轴") enabled:false
 		label tag "替换模型：" pos:[235,100]
 		--label assetModel "资产库模型" pos:[240,115] style_sunkenedge:true width:80 height:30 align:#center
 		GroupBox bitmapGroup "图片预览" pos:[10,160] width:380 height:380
@@ -553,12 +788,12 @@
 		(
 			if a > b then a else b
 		)
-
 		-- 手动实现 min 功能
 		fn myMin a b = 
 		(
 			if a < b then a else b
 		)
+		--得到路径的总体数组
 		fn getExtentsFromObjArray objs = 
 		(
 			local maxpoint = [1e-30,1e-30,1e-30]
@@ -581,14 +816,17 @@
 			local coefficient=1.0
 			local ClampAxis = xyzClamp.items[xyzClamp.selection]
 			--print("ClampAxis:" + ClampAxis)
-			if ClampAxis=="x" then
+			if ClampAxis=="x轴" then
 				coefficient = coefficientVector.x
-			else if ClampAxis=="y" then
+			else if ClampAxis=="y轴" then
 				coefficient = coefficientVector.y
-			else if ClampAxis=="z" then
+			else if ClampAxis=="z轴" then
 				coefficient = coefficientVector.z
 			else
+			(
 				messageBox("未知错误未找到轴")
+				0
+			)
 			print("coefficient" + coefficient as string)
 			newObj.scale *= coefficient
 		)
@@ -603,16 +841,12 @@
 				selectedSubPath
 			)
 		)
-		fn ReplaceNode fileP = 
+		fn ReplaceNode selectedObjs fileP = 
 		(
-			selectionBake = selection as Array
-			if(selection.count==0) then
-				messageBox "请在场景内选择被替换的物体"
-			else if(ReplaceFlag selection)then
+			selectionBake = selectedObjs as Array
+			if(ReplaceFlag selectedObjs)then
 			(
-				--print("找到max文件")
-				local selectionFathers = getOuterObjFormSelection selection
-				--print("找到最外层节点"+selectionFathers as string)
+				local selectionFathers = getOuterObjFormSelection selectedObjs
 				if(selectionFathers.count > 1) then
 				(
 					messageBox "请选择在同一组内的物体"
@@ -620,17 +854,16 @@
 				else
 				(
 					local oldObj = selectionFathers[1]
-					local oldObjs = selection
+					local oldObjs = selectedObjs
 					--关闭组用于判断当用户
 					if(isOpenGroupHead oldObj == true)then
 					(
 						setGroupOpen oldObj false
 						select oldObj
-						oldObjs = selection
+						oldObjs = selectedObjs
 					)
-					
 					local classFlag = true
-					for obj in selection while (classFlag == true) do
+					for obj in selectedObjs while (classFlag == true) do
 					(
 						classFlag = (classCheck obj)and classFlag
 					)
@@ -638,8 +871,8 @@
 					if(classFlag) then --类型判断
 					(
 						local newObjs = (MergeMaxFileAndReturnObjects fileP)
-						if(newObjs!=undefined )then--当用户选择模型时
-							if(newObjs.count!=0)then--当用户没有选择跳过时
+						if(newObjs!=undefined )then --当用户选择模型时
+							if(newObjs.count!=0)then --当用户没有选择跳过时
 							(
 								local success=()
 								local newObj = getOuterFatherNode newObjs --判断最外层节点数量
@@ -652,21 +885,20 @@
 								(
 									print("1")
 									success = ReplaceObj oldObj newObj[1]
-
 									if(sizeClampCheckBox.checked)then
 									(
 										--需要传入所有需要参与计算的物体数组
 										local newObjExtnets = getExtentsFromObjArray newObjs
-										print("newObjExtnets"+ newObjExtnets as string)
 										local oldObjExtnets = getExtentsFromObjArray oldObjs
-										print("oldObjExtnets"+ oldObjExtnets as string)
 										--需要传入所有需要参与计算的物体数组
 										sizeClamp oldObj newObj oldObjExtnets newobjExtnets
 										print("转化前新物体的extent:"+ newObjExtnets as string)
 										print("转化前旧物体的extent:"+ oldObjExtnets as string)
 										print("转化后新物体的extent:"+ (getExtentsFromObjArray newObjs)as string)
 									)
-									delete oldObj
+									undo on(
+										delete oldObj
+									)
 								)
 								else if(newObj.count>1)then
 								(
@@ -688,13 +920,12 @@
 										print("转化后新物体的extent:"+ (getExtentsFromObjArray newObjs)as string)
 									)
 									--
-									delete oldObj
+									undo on(
+										delete oldObj
+									)
 								)
 								if(success!=true) then
 								(
-									--print("替换失败")
-									--print(oldObj)
-									--print(tempArry)
 									delete newObjs
 									select selectionBake
 								)
@@ -708,7 +939,7 @@
 					else
 					(	
 						local unsupportList = #()
-						for obj in selection do
+						for obj in selectedObjs do
 						(
 							if(classCheck obj == false) then
 								append unsupportList (classof obj)
@@ -719,65 +950,127 @@
 			)
 			
 		)
+		fn getMapFileIndex = 
+		(
+			
+			local mapindex = (nowPage-1)*16+nowPressedButtonIndex
+		)
+		fn getNowSelectedFilePath = 
+		(
+			local mapindex = getMapFileIndex()
+			local mapPath = getElementFromArry mapFile mapindex
+			print("当前索引下的位图文件")
+			print(mapPath)
+			nowSelectedFilePath = mapPath
+			if(mapPath!=undefined) then
+			(
+				print("正在通过位图名称寻找max文件")
+				local fileN = ((getFilenameFile mapPath)+".max")
+				local fileP = SerchWithPathAndFileName selectedSubPath fileN
+				print("文件路径如下:")
+				print(fileP)
+				fileP
+			)
+			else
+			(
+				undefined
+			)
+				
+		)
+		fn getAllFilePath = 
+		(
+			local mapArray =#()
+			for mapPath in mapFile do
+			(
+				print("当前索引下的位图文件")
+				print(mapPath)
+				if(mapPath!=undefined) then
+				(
+					print("正在通过位图名称寻找max文件")
+					local fileN = ((getFilenameFile mapPath)+".max")
+					local fileP = SerchWithPathAndFileName selectedSubPath fileN
+					print("文件路径如下:")
+					print(fileP)
+					if(fileP!=undefined)then
+						append  mapArray fileP
+						
+				)
+			)
+			mapArray
+		)
+		fn setAllPage =
+		(
+			if(mod bitMaps.count 16 == 0) then
+				allPage = ((bitMaps.count/16)as integer)
+			else
+				allPage = ((bitMaps.count/16)as integer) + 1
+		)
 		-- rollout 打开事件
 		on pengpai1 open do
 		(
-			append imageButtonList bitmap1
-			append imageButtonList bitmap2
-			append imageButtonList bitmap3
-			append imageButtonList bitmap4
-			append imageButtonList bitmap5
-			append imageButtonList bitmap6
-			append imageButtonList bitmap7
-			append imageButtonList bitmap8
-			append imageButtonList bitmap9
-			append imageButtonList bitmap10
-			append imageButtonList bitmap11
-			append imageButtonList bitmap12
-			append imageButtonList bitmap13
-			append imageButtonList bitmap14
-			append imageButtonList bitmap15
-			append imageButtonList bitmap16
-			if(assetPath !=undefined and assetPath !="")then
-			(
-				trimedPath = TrimStringWithEllipsis assetPath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
-				btnSelectPath.text = trimedPath
-				LoadBitmapsFromDirectory (getSelectedSubPath ())
-				allPage = ((bitMaps.count/16)as integer)+1
-				updatePageIndex PageIndexButton
-				updateButtonIcon imageButtonList
+			undo off(
+				append imageButtonList bitmap1
+				append imageButtonList bitmap2
+				append imageButtonList bitmap3
+				append imageButtonList bitmap4
+				append imageButtonList bitmap5
+				append imageButtonList bitmap6
+				append imageButtonList bitmap7
+				append imageButtonList bitmap8
+				append imageButtonList bitmap9
+				append imageButtonList bitmap10
+				append imageButtonList bitmap11
+				append imageButtonList bitmap12
+				append imageButtonList bitmap13
+				append imageButtonList bitmap14
+				append imageButtonList bitmap15
+				append imageButtonList bitmap16
+				if(assetPath !=undefined and assetPath !="")then
+				(
+					trimedPath = TrimStringWithEllipsis assetPath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
+					btnSelectPath.text = trimedPath
+					LoadBitmapsFromDirectory (getSelectedSubPath ())
+					setAllPage()
+					updatePageIndex PageIndexButton
+					updateButtonIcon imageButtonList
+				)
 			)
 		)
+
 		--尺寸钳制开关事件
 		on sizeClampCheckBox changed theState do
 		(
-			xyzClamp.visible = theState
+			xyzClamp.enabled = theState
 		)
 		--
 		--资产路径选择
 		on btnSelectPath pressed do
 		(
-			assetPath = getSavePath caption:"选择文件"
-			if(assetPath != undefined) then
-			(
-				trimedPath = TrimStringWithEllipsis assetPath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
-				btnSelectPath.text = trimedPath
-				--print("Load")
-				LoadBitmapsFromDirectory (getSelectedSubPath())
-				allPage = ((bitMaps.count/16)as integer)+1
-				nowPage = 1
-				updatePageIndex PageIndexButton
-				updateButtonIcon imageButtonList
+			undo off(
+				assetPath = getSavePath caption:"选择文件"
+				if(assetPath != undefined) then
+				(
+					trimedPath = TrimStringWithEllipsis assetPath (btnSelectPath.width/9) --依据width/9为长度裁剪字符串
+					btnSelectPath.text = trimedPath
+					--print("Load")
+					LoadBitmapsFromDirectory (getSelectedSubPath())
+					setAllPage()
+					nowPage = 1
+					updatePageIndex PageIndexButton
+					updateButtonIcon imageButtonList
+				)
 			)
 		)
 		--end资产路径选择
 		on dirList selected index do
 		(
-			LoadBitmapsFromDirectory (getSelectedSubPath())
-			allPage = ((bitMaps.count/16)as integer)+1
-			nowPage = 1
-			updatePageIndex PageIndexButton
-			updateButtonIcon imageButtonList
+			undo off(
+				LoadBitmapsFromDirectory (getSelectedSubPath())
+				setAllPage()
+				nowPage = 1
+				updatePageIndex PageIndexButton
+				updateButtonIcon imageButtonList
+			)
 		)
 		--页面更新逻辑
 		on nextPage pressed do
@@ -795,11 +1088,13 @@
 		)
 		on lastPage pressed do
 		(
-			if((nowPage-1) > 0) do
-			(
-				nowPage-=1
-				updatePageIndex PageIndexButton
-				updateButtonIcon imageButtonList
+			undo off(
+				if((nowPage-1) > 0) do
+				(
+					nowPage-=1
+					updatePageIndex PageIndexButton
+					updateButtonIcon imageButtonList
+				)
 			)
 		)
 		--end页面更新逻辑
@@ -808,46 +1103,41 @@
 		on btnReplaceModel pressed do
 		(
 			undo off(
-				local mapindex = (nowPage-1)*16+nowButtonIndex
-				--print(mapindex)
-				local mapPath = getElementFromArry mapFile mapindex--判断索引位置的图像路径是否存在
-				--print (mapFile.count)
-				--print("替换按钮被点击mapPath："+(mapPath as string)+"  nowButtonIndex:"+(nowButtonIndex as string))
-				if(mapPath!=undefined) then
+				if(selection.count==0) then
+					messageBox "请在场景内选择被替换的物体"
+				else
 				(
-					--print("mapPath存在可以寻找对应模型")
-					local fileN = ((getFilenameFile mapPath)+".max")
-					--print(fileN as string)
-					
-					local fileP = getNewPathFromSelectPathAndFileName selectedSubPath fileN
-					--print("fileP:" + fileP as string)
+					--得到图片对应的max文件
+					local fileP = getNowSelectedFilePath()
 					if(fileP!=undefined) then
-					--print(fileP as string)
-						ReplaceNode fileP
+					(
+						--print(fileP as string)
+						ReplaceNode selection fileP
+					)
 					else
+					(
+						print("未找到图片对应模型")
 						messageBox "未找到图片所对应的模型"
-				)
+					)
+				)	
 			)
 		)
 		--end替换方法
-		--从路径选取模型
-		on btnGetFileFromAsset pressed do 
+		--裂变窗口
+		on btnOpenFission changed state do
 		(
-			if(assetPath!= undefined ) then 
-				local fileP = getOpenFileName caption:"选择替换模型" types:"全部文件(*.*)|*.*|max文件(.max)|*.max" filename:assetPath
+			if state == on then
+				CreateDialog fission 300 400 style:#(#style_titlebar,#style_sysmenu,#style_minimizebox,#style_maximizebox) parent:pengpai1.hwnd 
 			else
-				local fileP = getOpenFileName caption:"选择替换模型" types:"全部文件(*.*)|*.*|max文件(.max)|*.max"
-			--print(assetPath)
-			if(fileP!=undefined) then
-				ReplaceNode fileP
+				DestroyDialog fission
 		)
-		--end从路径选取模型
+		--end裂变窗口
 		--图片按钮方法
 		on bitmap1 pressed do
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap1 1
-				nowButtonIndex = 1
+				nowPressedButtonIndex = 1
 			)
 		)
 
@@ -855,7 +1145,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap2 2
-				nowButtonIndex = 2
+				nowPressedButtonIndex = 2
 			)
 		)
 
@@ -863,7 +1153,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap3 3
-				nowButtonIndex = 3
+				nowPressedButtonIndex = 3
 			)
 		)
 
@@ -871,7 +1161,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap4 4
-				nowButtonIndex = 4
+				nowPressedButtonIndex = 4
 			)
 		)
 
@@ -879,7 +1169,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap5 5
-				nowButtonIndex = 5
+				nowPressedButtonIndex = 5
 			)
 		)
 
@@ -887,7 +1177,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap6 6
-				nowButtonIndex = 6
+				nowPressedButtonIndex = 6
 			)
 		)
 
@@ -895,7 +1185,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap7 7
-				nowButtonIndex = 7
+				nowPressedButtonIndex = 7
 			)
 		)
 
@@ -903,7 +1193,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap8 8
-				nowButtonIndex = 8
+				nowPressedButtonIndex = 8
 			)
 		)
 
@@ -911,7 +1201,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap9 9
-				nowButtonIndex = 9
+				nowPressedButtonIndex = 9
 			)
 		)
 
@@ -919,7 +1209,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap10 10
-				nowButtonIndex = 10
+				nowPressedButtonIndex = 10
 			)
 		)
 
@@ -927,7 +1217,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap11 11
-				nowButtonIndex = 11
+				nowPressedButtonIndex = 11
 			)
 		)
 
@@ -935,7 +1225,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap12 12
-				nowButtonIndex = 12
+				nowPressedButtonIndex = 12
 			)
 		)
 
@@ -943,7 +1233,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap13 13
-				nowButtonIndex = 13
+				nowPressedButtonIndex = 13
 			)
 		)
 
@@ -951,7 +1241,7 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap14 14
-				nowButtonIndex = 14
+				nowPressedButtonIndex = 14
 			)
 		)
 
@@ -959,22 +1249,25 @@
 		(
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap15 15
-				nowButtonIndex = 16
+				nowPressedButtonIndex = 15
 			)
 		)
 		on bitmap16 pressed do 
 		( 
 			undo off(
 				updateSelectedModelButtonImage bitmapImage bitmap16 16
-				nowButtonIndex = 16
+				nowPressedButtonIndex = 16
 			)
 		)
 		--end图片按钮方法
 	--*
 	)
 -------------------------------------------------------------------endUI-------------------------------------------------------
-	theNewFloater = newRolloutFloater "Grinning" 410 600--rollout宽度为RolloutFloater的宽度-10
-	addRollout pengpai1 theNewFloater 
+	
+	theNewFloater = newRolloutFloater "Grinning" 420 610--rollout宽度为RolloutFloater的宽度-10
+	pengpaiInstance = pengpai1
+	addRollout pengpaiInstance theNewFloater 
+	
 )
 
 --createDialog mainRollot 400 600
