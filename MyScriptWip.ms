@@ -1,7 +1,8 @@
---0000-2024.12.6 15.49
---try(destroyDialog theNewFloater) catch()
+----------try(destroyDialog theNewFloater) catch()--
+
+----
 (
----------------------------------------------------变量------------------------------------------------
+---------------------------------------------------变量----------------------------------------------
 	global BitMaps = #() --Class:BitMap
 	global MapFiles = #() --Class:stringName
 	persistent global assetPath
@@ -14,9 +15,103 @@
 	global nowSelectedFilePath = ()
 	global PengPaiInstance = undefined
 	if(assetPath == undefined) then assetPath = ()
--------------------------------------------------全局变量----------------------------------------------
----------------------------------------------------方法------------------------------------------------
-	--*
+-------------------------------------------------end变量---------------------------------------------
+---------------------------------------------------方法----------------------------------------------
+	--增量保存脚本hou
+	fn IncrementalSave numCopies =
+	(
+		-- 获取当前场景文件的完整路径
+		local currentFilePath = maxFilePath + maxFileName
+		
+		-- 检查是否有打开的文件
+		if currentFilePath == "" do
+		(
+			print "没有打开任何文件!"
+			return false
+		)
+		
+		-- 分离文件名和扩展名
+		local fileName = getFilenameFile(currentFilePath)
+		local fileExt = getFilenameType(currentFilePath)
+		local filesArray =#()
+		-- 循环以生成增量保存
+		for i = 1 to numCopies do
+		(
+			-- 构造新文件名，例如：MyScene_1.max, MyScene_2.max 等等
+			local newFileName = (fileName + "_" + (i as string) + fileExt)
+			local newFilePath = maxFilePath + newFileName
+			
+			-- 保存当前场景到新路径
+			saveMaxFile newFilePath quiet:true
+			append filesArray newFilePath
+			print ("已保存: " + newFilePath)
+		)
+		filesArray
+	)
+	--
+	fn RenameAllDuplicatesObjName =
+	(
+		-- 创建一个空的数组来存储物体名称和计数
+		local nameArray = #()
+
+		-- 遍历场景中的所有几何对象
+		local objs =#()
+		for element in geometry do
+			append objs element
+		for element in helpers do
+			append objs element
+		for obj in objs do
+		(
+			-- 获取物体名称
+			local objName = obj.name
+
+			-- 查找该名称在 nameArray 中是否存在
+			local found = false
+			for i = 1 to nameArray.count do
+			(
+				if nameArray[i][1] == objName then
+				(
+					-- 如果找到，增加计数并设置 found 为 true
+					nameArray[i][2] += 1
+					found = true
+					exit -- 找到后退出循环，不再继续查找
+				)
+				
+			)
+
+			-- 如果没有找到该名称，添加新条目到 nameArray 中
+			if not found then 
+			(
+				append nameArray #(objName, 1) -- 名称和初始计数为 1 的数组元素
+			)
+		)
+
+		-- 输出重名物体的信息
+		local hasDuplicates = false
+		for i = 1 to nameArray.count do
+		(
+			if nameArray[i][2] > 1 then 
+			(
+				print (nameArray[i][1] + " 重复出现了 " + (nameArray[i][2]) as string + " 次.")
+				--重命名物体
+				for j=1 to nameArray[i][2] do
+				(
+					(getNodeByName nameArray[i][1]).name = (nameArray[i][1]+ "_" + j as string)
+					print (nameArray[i][1] + " 重命名为 " + nameArray[i][1]+ "_" + j as string)
+				)
+				hasDuplicates = true
+			)
+		)	
+		if not hasDuplicates then 
+		(
+			hasDuplicates
+			print "没有发现重名的物体。"
+		)
+		hasDuplicates
+
+	)
+	--
+	--*向量除法
 	fn vectorDivide v1 v2 =
 	(
 		--检查是否试图进行非法操作，如被零除
@@ -434,21 +529,7 @@
 		finalPath
 	)
 	
-	fn getSubfolders folderPath = 
-	(
-		-- 确保传入的路径存在并是一个文件夹
-		if doesFileExist folderPath and (getDirectories (folderPath + "\\*")) != undefined then
-		(
-			local folderList = getDirectories (folderPath + "\\*") -- 获取所有子文件夹
-			local folderNames = for folder in folderList collect (getFilenameFile (trimRight folder "\\"))
-			return folderNames
-		)
-		else
-		(
-			format "提供的路径无效或不是一个文件夹: %\n" folderPath
-			return #() -- 返回空数组
-		)
-	)
+	
 	--选中物体列表是否为完整组并选中整组物体
 	fn isGroupValid objs =
 	(
@@ -468,7 +549,6 @@
 	--检查选中物体列表是否满足选中规则，单个物体，整组物体。
 	fn SelectFlag objs =
 	(
-		
 		if(objs!=undefined)then
 		(
 			if(objs.count>1)then
@@ -487,7 +567,6 @@
 		else
 			messageBox("SelectFlag：传入参数未定义")
 	)
-	
 	-- 手动实现 max 功能
 	fn myMax a b = 
 	(
@@ -515,8 +594,8 @@
 		local enxtent = maxpoint - minpoint
 		
 	)
-------------------------------------------------------------------end方法-----------------------------------------------------
--------------------------------------------------------------------展卷栏-------------------------------------------------------
+--------------------------------------------------end方法--------------------------------------------
+--------------------------------------------------UI类-----------------------------------------------
 	rollout fission "裂变窗口"
 	(
 		dropdownlist FissionMethod "映射关系"items:#("x","y","z")
@@ -528,24 +607,24 @@
 		button StartFission "开始裂变" align:#center width:60 height:30
 		local originObjs = #() --物体列表
 		local originObjsName = #() --物体名字列表
-		---------------------------------每种裂变对应关系需要的数据结构---------------------------------
+		local maxFissionNum = 1
+		-----------------------------------每种裂变对应关系需要的数据结构---------------------------------
 		--方法1，一对多，每次对所有被裂变的物体进行裂变，选择了最多裂变物体的模型为基准产生裂变方案数量
 		--local M1_selectedIndex = 0
 		locaL M1_fissionObjsPathsArray = #(#())
 		locaL M1_fissionObjsNameArray = #(#())
 		--end方法1
 		---------------------------------end每种裂变对应关系需要的数据结构---------------------------------
-		--------------------------------------执行器需要的裂变数据-------------------------------------
+		--------------------------------------执行器需要的裂变数据----------------------------------------
 		local objPairsArray =#()
-		--------------------------------------end执行器需要的裂变数据-------------------------------------
+		-------------------------------------end执行器需要的裂变数据--------------------------------------
 		--物体对结构，通过物体对列表
-		struct objPair (objs , filePath)
+		struct objPair (obj,filePath)
 		local objPairList = #()
 		--构建物体对方法
-		fn MakeObjPair originObjs newObjPath =
+		fn MakeReplacePair originObjs newObjPath =
 		(
-			objPair objs:objs filePath:filePath
-			objPair
+			objPair obj:originObjs filePath:newObjPath
 		)
 		--物体对列表构建器，返回每次替换时需要替换的物体对列表的列表
 		fn ObjPairArrayMaker oldObjs newObjs =
@@ -556,8 +635,8 @@
 				1:
 				(
 					for i=1 to originObjs.count do (
-						for fissionobj in M1_fissionObjsPathsArray[i] do (
-							MakeObjPair originObjs[i] fissionobj
+						for fissionObj in M1_fissionObjsPathsArray[i] do (
+							MakeReplacePair originObjs[i] fissionObj
 						)
 					)
 				)
@@ -636,7 +715,6 @@
 						if(M1_fissionObjsNameArray[listbox1.selection] == undefined)then
 							M1_fissionObjsNameArray[listbox1.selection] = #()
 						--判断是否重复存在
-						print("分支")
 						if(finditem M1_fissionObjsPathsArray[listbox1.selection] filePath == 0)then
 						(
 							print("添加裂变物体成功")
@@ -679,6 +757,7 @@
 				)
 			)
 		)
+		
 		--选择器,根据列表信息返回对应的执行器需要的数据
 		fn Selecter = 
 		(
@@ -686,14 +765,55 @@
 			(
 				1:
 				(
-					MakeObjPair 
+					--方法一执行最大次数，这影响了objPairsArray的长度
+					local MaxNum = 0
+					for nameArray in M1_fissionObjsPathsArray do 
+					(
+						MaxNum = myMax nameArray.count MaxNum
+					)
+					maxFissionNum =  MaxNum
+					print("MaxNum"+MaxNum as string)
+					if(MaxNum>0)then
+					(
+						--每一个物体进行一次循环将其与其关联的裂变物体制成物体对并添加到物体对数组数组
+						for i=1 to originObjs.count do
+						--j为第j次裂变执行的物体对数组
+						for j=1 to MaxNum do
+						(
+							if(objPairsArray[j] == undefined)then
+								objPairsArray[j] = #()
+							local pathCount = M1_fissionObjsPathsArray[i].count
+							local index = mod j pathCount
+							if(index==0)then
+							(
+								index = pathCount
+							)
+							--添加数据到第j次执行时的物体对数组
+							append objPairsArray[j] (MakeReplacePair originObjsName[i] M1_fissionObjsPathsArray[i][index])
+						)
+					)
 				)
 			)
 		)
 		--执行器，根据物体对列表的列表逐步执行物体替换
 		fn Executor =
 		(
-
+			local MaxFileArray = IncrementalSave maxFissionNum
+			loadmaxFile MaxFileArray[1]
+			--第一层循环确定max文件
+			for i=1 to maxFissionNum do
+			(
+				-- 第二层循环用于替换物体
+				for objPair in objPairsArray[i] do
+				(
+					local objFormNames = #()
+					append objFormNames (getNodeByName objPair.obj)
+					pengpaiInstance.ReplaceNode objFormNames objPair.filePath
+				)
+				saveMaxFile MaxFileArray[i] quiet:true
+				if(i+1<=maxFissionNum)then
+					loadMaxFile MaxFileArray[i+1] quiet:true
+			) 
 		)
 		on listbox1 selected num do
 		(
@@ -753,6 +873,23 @@
 			print("全选按钮被点击")
 			addAllFissionObj()
 		)
+		on StartFission pressed do
+		(
+			Selecter()
+			print(objPairsArray.count)
+			for i=1 to objPairsArray.count do
+			(
+				format "这是第%次执行时的替换数据" i
+				print("objPairsArray:"+objPairsArray as string)
+				for objPair in objPairsArray[i] do
+				(
+					print("objPairsArray[]:" + objPairsArray[i] as string)
+					print("obj" + objPair.obj as string)
+					print("filePath"+objPair.filePath as string)
+				)	
+			)
+			Executor()
+		)
 		on fission close do
 		(
 			PengPaiInstance.btnOpenFission.state = off
@@ -795,7 +932,7 @@
 		button PageIndexButton "1/1" pos:[170,545] width:60 height:30
 		--
 
-
+		local renamed = false
 		fn sizeClamp oldObj newObj oldExtnets newExtnets = 
 		(
 			local coefficientVector = vectorDivide oldExtnets newExtnets
@@ -816,6 +953,21 @@
 			print("coefficient" + coefficient as string)
 			newObj.scale *= coefficient
 		)
+		fn getSubfolders folderPath = 
+		(
+			-- 确保传入的路径存在并是一个文件夹
+			if doesFileExist folderPath and (getDirectories (folderPath + "\\*")) != undefined then
+			(
+				local folderList = getDirectories (folderPath + "\\*") -- 获取所有子文件夹
+				local folderNames = for folder in folderList collect (getFilenameFile (trimRight folder "\\"))
+				return folderNames
+			)
+			else
+			(
+				format "提供的路径无效或不是一个文件夹: %\n" folderPath
+				return #() -- 返回空数组
+			)
+		)
 		fn getSelectedSubPath =
 		(
 			subAssetFolders = getSubfolders assetPath
@@ -830,7 +982,7 @@
 		fn ReplaceNode selectedObjs fileP = 
 		(
 			selectionBake = selectedObjs as Array
-			local selectionFathers = getOuterObjFormSelection selection
+			local selectionFathers = getOuterObjFormSelection selectedObjs
 			local oldObj = selectionFathers[1]
 			local oldObjs = selectedObjs
 			--关闭组用于判断当用户选择打开组时的情况
@@ -984,14 +1136,14 @@
 		--物体数组是否满足替换条件
 		fn ReplaceFlag objs =
 		(
-		if(selection.count==0) then
-		(
-			messageBox "请在场景内选择被替换的物体"
-			false
-		)		
-		else if(SelectFlag selection)then
+			if(selection.count==0) then
 			(
-				local selectionFathers = getOuterObjFormSelection selection
+				messageBox "请在场景内选择被替换的物体"
+				false
+			)		
+			else if(SelectFlag objs)then
+			(
+				local selectionFathers = getOuterObjFormSelection objs
 				if(selectionFathers.count > 1) then
 				(
 					messageBox "请选择在同一组内的物体"
@@ -1122,6 +1274,11 @@
 		--裂变窗口
 		on btnOpenFission changed state do
 		(
+			if(renamed==false)then
+			(
+				RenameAllDuplicatesObjName()
+				renamed=true
+			)
 			if state == on then
 				CreateDialog fission 300 400 style:#(#style_titlebar,#style_sysmenu,#style_minimizebox,#style_maximizebox) parent:pengpai1.hwnd 
 			else
@@ -1258,11 +1415,11 @@
 		--end图片按钮方法
 	--*
 	)
--------------------------------------------------------------------endUI-------------------------------------------------------
-	
+-------------------------------------------------endUI类----------------------------------------------
+	--实例化UI界面
 	theNewFloater = newRolloutFloater "Grinning" 420 610--rollout宽度为RolloutFloater的宽度-10
 	PengPaiInstance = pengpai1
-	addRollout PengPaiInstance theNewFloater 
+	addRollout PengPaiInstance theNewFloater
 	
 )
 
