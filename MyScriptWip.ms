@@ -594,6 +594,27 @@
 		local enxtent = maxpoint - minpoint
 		
 	)
+	--渲染并保存文件方法
+	fn renderAndSaveImage = 
+	(
+        -- 获取当前 Max 文件的路径和名称
+        local currentFilePath = maxFilePath
+        if currentFilePath != "" then
+        (
+            local directoryPath = maxFilePath  -- 获取目录路径
+            local fileNameWithoutExtension = getFilenameFile maxFileName  -- 获取不带扩展名的文件名
+            
+            -- 构建输出路径，将渲染图像保存到与 Max 文件相同的目录下
+            local outputPath = directoryPath + fileNameWithoutExtension + ".png"
+            -- 渲染并保存到指定文件名
+            render outputfile:outputPath quiet:true
+            print ("Rendered to " + outputPath)
+        )
+        else
+        (
+            print "请先保存当前场景文件！"
+        )
+	)
 --------------------------------------------------end方法--------------------------------------------
 --------------------------------------------------UI类-----------------------------------------------
 	rollout fission "裂变窗口"
@@ -734,7 +755,7 @@
 		fn addAllFissionObj =
 		(
 			local files = PengPaiInstance.getAllFilePath()
-			print("files: 如下")
+			print("全部文件: 如下")
 			print(files)
 			for myfile in files do
 			(
@@ -808,11 +829,19 @@
 				(
 					local objFormNames = #()
 					append objFormNames (getNodeByName objPair.obj)
-					pengpaiInstance.ReplaceNode objFormNames objPair.filePath
+					if(objFormNames[1]!=undefined)then
+						pengpaiInstance.ReplaceNode objFormNames objPair.filePath
+					else
+					(
+						messagebox "无法从物体名"+ objPair.obj +"称找到对应物体"
+						break
+					)
 				)
 				saveMaxFile MaxFileArray[i] quiet:true
+				renderAndSaveImage()
 				if(i+1<=maxFissionNum)then
 					loadMaxFile MaxFileArray[i+1] quiet:true
+				
 			) 
 		)
 		on listbox1 selected num do
@@ -903,7 +932,7 @@
 		checkbutton  btnOpenFission "打开裂变窗口" pos:[40,80] width:100 height:30 align:#cente
 		button bitmapImage pos:[300,78] width:80 height:80 bitmap:(bitmap 128 128 color:black) pixelAspect:2
 		checkbox sizeClampCheckBox "尺寸钳制" pos:[140,125] 
-		dropdownlist xyzClamp pos:[210,122] width:50 height:20 items:#("x轴","y轴","z轴") enabled:false
+		dropdownlist xyzClamp pos:[210,122] width:50 height:20 items:#("x轴","y轴","z轴","所有轴") enabled:false
 		label tag "替换模型：" pos:[235,100]
 		--label assetModel "资产库模型" pos:[240,115] style_sunkenedge:true width:80 height:30 align:#center
 		GroupBox bitmapGroup "图片预览" pos:[10,160] width:380 height:380
@@ -945,13 +974,21 @@
 				coefficient = coefficientVector.y
 			else if ClampAxis=="z轴" then
 				coefficient = coefficientVector.z
+			else if ClampAxis=="所有轴" then
+			(
+				coefficient = myMin coefficientVector.x coefficientVector.y
+				coefficient = myMin coefficient coefficientVector.z
+			)
 			else
 			(
 				messageBox("未知错误未找到轴")
 				0
 			)
 			print("coefficient" + coefficient as string)
-			newObj.scale *= coefficient
+			if(coefficient<1)then
+				newObj.scale *= coefficient
+			else
+			print("coefficient"+coefficient as string+"模型无需钳制")
 		)
 		fn getSubfolders folderPath = 
 		(
